@@ -1377,46 +1377,62 @@ function toggleFechaSelector() {
 async function guardarModo() {
   const modo = document.getElementById('modo-select').value;
   let fecha_actual = null;
-  
+
   if (modo === 'prueba') {
-    const year = parseInt(document.getElementById('fecha-year').value);
+    const year  = parseInt(document.getElementById('fecha-year').value);
     const month = parseInt(document.getElementById('fecha-month').value);
     fecha_actual = `${year}-${String(month).padStart(2, '0')}-01`;
-    
-    // Validar que la fecha no sea mayor al mes actual
-    const hoy = new Date();
+
+    const hoy              = new Date();
     const fechaSeleccionada = new Date(year, month - 1, 1);
-    
     if (fechaSeleccionada > hoy) {
       toast('La fecha seleccionada no puede ser mayor al mes actual', 'error');
       return;
     }
   }
-  
-  const modoAnterior = modoActual;
+
   await postJSON('/api/set_modo', { modo, fecha_actual });
-  modoActual = modo;
-  fechaActual = fecha_actual;
-  
+  modoActual   = modo;
+  fechaActual  = fecha_actual;
+
   actualizarDisplayModo();
   closeModal('modal-modo');
   toast(`Modo cambiado a ${modo === 'produccion' ? 'Producción' : 'Prueba'}`);
-  
-  // Recálculo automático si cambió el modo
-  if (modoAnterior !== modo) {
-    await ejecutarRecalculoAutomatico();
+
+  // Recalcular pronóstico con el nuevo mes actual
+  toast('⏳ Recalculando pronóstico con nuevo modo...');
+  try {
+    const r = await postJSON('/api/recalcular_pronostico', {
+      meses: 12,
+      modo: modoActual,
+      fecha_actual: fechaActual
+    });
+    if (r.ok) {
+      toast('✅ Pronóstico recalculado', 'success');
+    }
+  } catch(e) {
+    console.error('Error recalculando:', e);
   }
-  
-  // Recargar datos con nuevo modo
-  if (paginaActual === 'dashboard') actualizarDashboard();
+
+  // Recargar la página activa actual
+  recargarPaginaActual();
+}
+
+function recargarPaginaActual() {
+  if (paginaActual === 'dashboard')  actualizarDashboard();
+  if (paginaActual === 'demanda')    actualizarDemanda();
+  if (paginaActual === 'ventas')     actualizarVentas();
   if (paginaActual === 'pronostico') actualizarPronostico();
-  if (paginaActual === 'pap') actualizarPAP();
+  if (paginaActual === 'pap')        actualizarPAP();
 }
 
 function actualizarDisplayModo() {
   const display = document.getElementById('modo-display');
-  if (modoActual === 'prueba') {
-    display.textContent = `🧪 Prueba (${fechaActual})`;
+  if (modoActual === 'prueba' && fechaActual) {
+    const mesesAbrev = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.',
+                        'Jul.','Ago.','Sep.','Oct.','Nov.','Dic.'];
+    const [anio, mes] = fechaActual.split('-').map(Number);
+    display.textContent = `🧪 Prueba (${mesesAbrev[mes - 1]} ${anio})`;
   } else {
     display.textContent = '🏭 Producción';
   }
@@ -1659,72 +1675,84 @@ async function cargarProductos() {
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════
 async function actualizarDashboard() {
-  const prod      = document.getElementById('dash-filtro-prod')?.value || 'Todos';
-  const meses     = document.getElementById('dash-meses')?.value || 6;
+  const prod       = document.getElementById('dash-filtro-prod')?.value || 'Todos';
+  const meses      = document.getElementById('dash-meses')?.value || 6;
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
-  // KPIs — ahora siempre pasan modo y fecha
-  const kpiUrl = prod === 'Todos'
-    ? `/api/dashboard_kpis?x=1${modoParams}`
-    : `/api/dashboard_kpis_producto?producto=${encodeURIComponent(prod)}${modoParams}`;
+  try {
+    // KPIs
+    const kpiUrl = prod === 'Todos'
+      ? `/api/dashboard_kpis?x=1${modoParams}`
+      : `/api/dashboard_kpis_producto?producto=${encodeURIComponent(prod)}${modoParams}`;
 
-  const kpis = await fetchJSON(kpiUrl);
-  document.getElementById('kpi-dem').textContent   = kpis.dem_pronosticada;
-  document.getElementById('kpi-inv').textContent   = kpis.inv_total;
-  document.getElementById('kpi-op').textContent    = kpis.operarios;
-  document.getElementById('kpi-mape').textContent  = kpis.mape;
-  document.getElementById('kpi-prods').textContent = kpis.n_productos;
-  document.getElementById('kpi-fecha').textContent = kpis.fecha;
+    const kpis = await fetchJSON(kpiUrl);
+    document.getElementById('kpi-dem').textContent   = kpis.dem_pronosticada ?? '–';
+    document.getElementById('kpi-inv').textContent   = kpis.inv_total        ?? '–';
+    document.getElementById('kpi-op').textContent    = kpis.operarios        ?? '–';
+    document.getElementById('kpi-mape').textContent  = kpis.mape             ?? '–';
+    document.getElementById('kpi-prods').textContent = kpis.n_productos      ?? '–';
+    document.getElementById('kpi-fecha').textContent = kpis.fecha            ?? '–';
+  } catch(e) {
+    console.error('Error cargando KPIs:', e);
+    toast('Error cargando KPIs del Dashboard', 'error');
+  }
 
   // Spinners
   ['chart-hist','chart-prod-plan','chart-ventas','chart-pap-dash'].forEach(id => {
     document.getElementById(id).innerHTML = '<div class="spinner"></div>';
   });
 
-  // Gráficos en paralelo
-  const [hist, barras, ventas, pap] = await Promise.all([
-    fetchJSON(`/api/grafico_demanda_historica?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
-    fetchJSON(`/api/grafico_pronostico_barras?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
-    fetchJSON(`/api/grafico_ventas_pronostico?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
-    fetchJSON(`/api/grafico_pap_resumen?producto=${encodeURIComponent(prod)}&meses=3${modoParams}`),
-  ]);
+  try {
+    const [hist, barras, ventas, pap] = await Promise.all([
+      fetchJSON(`/api/grafico_demanda_historica?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
+      fetchJSON(`/api/grafico_pronostico_barras?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
+      fetchJSON(`/api/grafico_ventas_pronostico?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
+      fetchJSON(`/api/grafico_pap_resumen?producto=${encodeURIComponent(prod)}&meses=3${modoParams}`),
+    ]);
 
-  renderChart('chart-hist',      hist.img);
-  renderChart('chart-prod-plan', barras.img);
-  renderChart('chart-ventas',    ventas.img);
-  renderChart('chart-pap-dash',  pap.img);
+    if (hist?.img)   renderChart('chart-hist',      hist.img);
+    if (barras?.img) renderChart('chart-prod-plan', barras.img);
+    if (ventas?.img) renderChart('chart-ventas',    ventas.img);
+    if (pap?.img)    renderChart('chart-pap-dash',  pap.img);
+  } catch(e) {
+    console.error('Error cargando gráficos:', e);
+    toast('Error cargando gráficos del Dashboard', 'error');
+  }
 
-  // Tabla PAP resumen
+  // Tabla PAP
   document.getElementById('table-pap-resumen').innerHTML = '<div class="spinner"></div>';
+  try {
+    if (prod === 'Todos') {
+      const papTablas = await fetchJSON(`/api/pap_dashboard_tablas?meses=3${modoParams}`);
+      const wrap = document.getElementById('table-pap-resumen');
+      wrap.innerHTML = '';
 
-  if (prod === 'Todos') {
-    const papTablas = await fetchJSON(`/api/pap_dashboard_tablas?meses=3${modoParams}`);
-    const wrap = document.getElementById('table-pap-resumen');
-    wrap.innerHTML = '';
+      const costoDiv = document.createElement('div');
+      costoDiv.style.cssText = 'background:var(--brown-med);color:white;padding:16px;border-radius:10px;margin-bottom:20px;text-align:center;';
+      costoDiv.innerHTML = `<h3 style="margin:0 0 6px 0;font-size:16px;">Costo Total del Horizonte (3 meses)</h3>
+                            <div style="font-size:26px;font-weight:bold;">${papTablas.costo_total_horizonte}</div>`;
+      wrap.appendChild(costoDiv);
 
-    const costoDiv = document.createElement('div');
-    costoDiv.style.cssText = 'background:var(--brown-med);color:white;padding:16px;border-radius:10px;margin-bottom:20px;text-align:center;';
-    costoDiv.innerHTML = `<h3 style="margin:0 0 6px 0;font-size:16px;">Costo Total del Horizonte (3 meses)</h3>
-                          <div style="font-size:26px;font-weight:bold;">${papTablas.costo_total_horizonte}</div>`;
-    wrap.appendChild(costoDiv);
-
-    for (const [prodNombre, tablaData] of Object.entries(papTablas.tablas)) {
-      const section = document.createElement('div');
-      section.style.cssText = 'margin-bottom:28px;';
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 14px;background:var(--gray-100);border-radius:8px;border-left:4px solid var(--brown-med);';
-      header.innerHTML = `<span style="font-weight:700;color:var(--brown-dark);font-size:14px;">${prodNombre}</span>
-                          <span style="font-weight:700;color:var(--brown-med);font-size:14px;">Costo 3 meses: ${tablaData.costo_prod}</span>`;
-      section.appendChild(header);
-      const tablaContainer = document.createElement('div');
-      tablaContainer.className = 'table-wrap';
-      section.appendChild(tablaContainer);
-      wrap.appendChild(section);
-      renderTable(tablaContainer, tablaData);
+      for (const [prodNombre, tablaData] of Object.entries(papTablas.tablas)) {
+        const section = document.createElement('div');
+        section.style.cssText = 'margin-bottom:28px;';
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 14px;background:var(--gray-100);border-radius:8px;border-left:4px solid var(--brown-med);';
+        header.innerHTML = `<span style="font-weight:700;color:var(--brown-dark);font-size:14px;">${prodNombre}</span>
+                            <span style="font-weight:700;color:var(--brown-med);font-size:14px;">Costo 3 meses: ${tablaData.costo_prod}</span>`;
+        section.appendChild(header);
+        const tablaContainer = document.createElement('div');
+        tablaContainer.className = 'table-wrap';
+        section.appendChild(tablaContainer);
+        wrap.appendChild(section);
+        renderTable(tablaContainer, tablaData);
+      }
+    } else {
+      const papData = await fetchJSON(`/api/tabla_pap?producto=${encodeURIComponent(prod)}&meses=3${modoParams}`);
+      renderTable('table-pap-resumen', papData);
     }
-  } else {
-    const papData = await fetchJSON(`/api/tabla_pap?producto=${encodeURIComponent(prod)}&meses=3${modoParams}`);
-    renderTable('table-pap-resumen', papData);
+  } catch(e) {
+    console.error('Error cargando tabla PAP:', e);
   }
 }
 
@@ -1732,16 +1760,15 @@ async function actualizarDashboard() {
 // DEMANDA
 // ═══════════════════════════════════════════════════════════════
 async function actualizarDemanda() {
-  const prod = document.getElementById('dem-filtro-prod')?.value || 'Todos';
-  const meses = document.getElementById('dem-meses')?.value || 6;
-  
+  const prod       = document.getElementById('dem-filtro-prod')?.value || 'Todos';
+  const meses      = document.getElementById('dem-meses')?.value || 6;
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
   document.getElementById('chart-dem-hist').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('table-demanda').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('table-demanda').innerHTML  = '<div class="spinner"></div>';
 
   const [chart, tabla] = await Promise.all([
-    fetchJSON(`/api/grafico_demanda_barras?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
+    fetchJSON(`/api/grafico_demanda_barras?producto=${encodeURIComponent(prod)}${modoParams}`),
     fetchJSON(`/api/tabla_demanda?producto=${encodeURIComponent(prod)}${modoParams}`),
   ]);
 
@@ -1753,11 +1780,11 @@ async function actualizarDemanda() {
 // VENTAS
 // ═══════════════════════════════════════════════════════════════
 async function actualizarVentas() {
-  const prod = document.getElementById('ven-filtro-prod')?.value || 'Todos';
+  const prod       = document.getElementById('ven-filtro-prod')?.value || 'Todos';
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
   document.getElementById('chart-ven-hist').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('table-ventas').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('table-ventas').innerHTML   = '<div class="spinner"></div>';
 
   const [chartHist, tabla] = await Promise.all([
     fetchJSON(`/api/grafico_ventas_historico?producto=${encodeURIComponent(prod)}${modoParams}`),
@@ -1940,20 +1967,44 @@ async function agregarProducto() {
 
 // ─── DEMANDA ──────────────────────────────────────────────────
 async function cargarMeses() {
-  const meses = await fetchJSON('/api/meses_disponibles');
+  const mesesAbrev = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.',
+                      'Jul.','Ago.','Sep.','Oct.','Nov.','Dic.'];
+
+  // Mes actual según modo
+  let mesCorte;
+  if (modoActual === 'prueba' && fechaActual) {
+    mesCorte = new Date(fechaActual + 'T00:00:00');
+  } else {
+    const hoy = new Date();
+    mesCorte  = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  }
+
+  // Obtener meses históricos del servidor
+  const mesesDisponibles = await fetchJSON('/api/meses_disponibles');
+
   const sel = document.getElementById('edit-dem-mes');
   if (!sel) return;
   sel.innerHTML = '';
-  // Mostrar los últimos 6 meses + mes actual
-  const hoy = new Date();
-  const mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  const opciones = meses.slice(-6);
-  // Agregar mes actual si no está
-  const mesActualStr = mesActual.toISOString().split('T')[0];
-  if (!opciones.includes(mesActualStr)) opciones.push(mesActualStr);
-  opciones.reverse().forEach(m => {
+
+  // Filtrar meses estrictamente anteriores al mes corte del modo
+  // y agregar el mes corte (mes actual del modo) al final
+  const mesesFiltrados = mesesDisponibles.filter(m => {
     const d = new Date(m + 'T00:00:00');
-    sel.innerHTML += `<option value="${m}">${d.toLocaleString('es', {month:'long', year:'numeric'})}</option>`;
+    return d < mesCorte;
+  });
+
+  // Agregar también el mes actual del modo aunque no esté en histórico
+  const mesCorteStr = `${mesCorte.getFullYear()}-${String(mesCorte.getMonth() + 1).padStart(2,'0')}-01`;
+  if (!mesesFiltrados.includes(mesCorteStr)) {
+    mesesFiltrados.push(mesCorteStr);
+  }
+
+  // Mostrar últimos 6 + mes actual del modo, más recientes primero
+  const ultimos = mesesFiltrados.slice(-6);
+  [...ultimos].reverse().forEach(m => {
+    const d     = new Date(m + 'T00:00:00');
+    const label = `${mesesAbrev[d.getMonth()]} ${d.getFullYear()}`;
+    sel.innerHTML += `<option value="${m}">${label}</option>`;
   });
 }
 
