@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 import matplotlib.dates as mdates
+import matplotlib.lines
 import locale
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
@@ -264,15 +265,21 @@ def api_necesita_recalculo():
 
 @app.route('/api/dashboard_kpis')
 def api_dashboard_kpis():
+    modo = request.args.get('modo', 'produccion')
+    fecha_actual = request.args.get('fecha_actual')
+
     df_dem = cargar_demanda()
     df_pron = cargar_pronosticos()
     nombres = obtener_nombres_productos(df_dem)
     op = cargar_operarios()
 
-    hoy = pd.Timestamp.now().normalize()
+    if modo == 'prueba' and fecha_actual:
+        hoy = pd.Timestamp(fecha_actual).normalize()
+    else:
+        hoy = pd.Timestamp.now().normalize()
     mes_actual = hoy.replace(day=1)
 
-    # Pronóstico próximos 3 meses
+    # Pronóstico próximos 3 meses desde mes actual
     dem_pronosticada = 0
     if not df_pron.empty:
         fechas_fut = pd.date_range(mes_actual, periods=3, freq='MS')
@@ -286,7 +293,7 @@ def api_dashboard_kpis():
     df_prod = cargar_productos()
     inv_total = int(df_prod['Inventario'].sum()) if 'Inventario' in df_prod.columns else 0
 
-    # MAPE aproximado (últimos datos vs pronóstico)
+    # MAPE
     mape_vals = []
     if not df_pron.empty:
         for prod in nombres:
@@ -304,53 +311,51 @@ def api_dashboard_kpis():
 
     return jsonify({
         'dem_pronosticada': fmt_num(dem_pronosticada),
-        'inv_total': fmt_num(inv_total),
-        'operarios': int(op['operarios']),
-        'mape': f"{mape_global:.2f}%",
-        'n_productos': len(nombres),
-        'fecha': hoy.strftime('%d/%m/%Y'),
+        'inv_total':        fmt_num(inv_total),
+        'operarios':        int(op['operarios']),
+        'mape':             f"{mape_global:.2f}%",
+        'n_productos':      len(nombres),
+        'fecha':            hoy.strftime('%d/%m/%Y'),
     })
-
 
 @app.route('/api/dashboard_kpis_producto')
 def api_dashboard_kpis_producto():
-    """KPIs del Dashboard para un producto específico."""
-    producto = request.args.get('producto', 'Todos')
-    modo = request.args.get('modo', 'produccion')
+    producto    = request.args.get('producto', 'Todos')
+    modo        = request.args.get('modo', 'produccion')
     fecha_actual = request.args.get('fecha_actual')
-    
-    df_dem = cargar_demanda()
+
+    df_dem  = cargar_demanda()
     df_pron = cargar_pronosticos()
     df_prod = cargar_productos()
     nombres = obtener_nombres_productos(df_dem)
-    
+
     if producto == 'Todos':
-        # Si es Todos, retornar los KPIs generales
-        return jsonify(api_dashboard_kpis().get_json())
-    
-    # KPIs para producto específico
-    col_dem = f'Demanda_{producto}'
-    col_pron = f'Pronostico_Demanda_{producto}'
-    
-    # Demanda pronosticada del producto
-    dem_pronosticada = 0
-    hoy = pd.Timestamp.now().normalize()
+        return api_dashboard_kpis()
+
+    if modo == 'prueba' and fecha_actual:
+        hoy = pd.Timestamp(fecha_actual).normalize()
+    else:
+        hoy = pd.Timestamp.now().normalize()
     mes_actual = hoy.replace(day=1)
-    
+
+    col_dem  = f'Demanda_{producto}'
+    col_pron = f'Pronostico_Demanda_{producto}'
+
+    dem_pronosticada = 0
     if not df_pron.empty and col_pron in df_pron.columns:
         fechas_fut = pd.date_range(mes_actual, periods=3, freq='MS')
         filas = df_pron[df_pron['Mes'].isin(fechas_fut)]
         dem_pronosticada = int(filas[col_pron].sum())
-    
-    # Inventario del producto
+
     inv_producto = 0
+    precio_producto = 3.5
     for _, row in df_prod.iterrows():
         nombre_completo = f"{row['Nombre']} {int(row['Tamaño (g)'])} g"
-        if nombre_completo == producto and 'Inventario' in row:
-            inv_producto = int(row['Inventario'])
+        if nombre_completo == producto:
+            inv_producto    = int(row.get('Inventario', 0))
+            precio_producto = float(row.get('Precio Unitario ($)', 3.5))
             break
-    
-    # MAPE del producto
+
     mape_producto = 0
     if not df_pron.empty and col_dem in df_dem.columns and col_pron in df_pron.columns:
         merged = df_dem.set_index('Mes')[col_dem].join(
@@ -358,26 +363,18 @@ def api_dashboard_kpis_producto():
         merged = merged.dropna()
         merged = merged[merged[col_dem] > 0]
         if len(merged) > 0:
-            mape_producto = float((abs(merged[col_dem] - merged[col_pron]) / merged[col_dem]).mean() * 100)
-    
-    # Precio del producto
-    precio_producto = 3.5
-    for _, row in df_prod.iterrows():
-        nombre_completo = f"{row['Nombre']} {int(row['Tamaño (g)'])} g"
-        if nombre_completo == producto:
-            precio_producto = float(row['Precio Unitario ($)'])
-            break
-    
+            mape_producto = float(
+                (abs(merged[col_dem] - merged[col_pron]) / merged[col_dem]).mean() * 100)
+
     return jsonify({
         'dem_pronosticada': fmt_num(dem_pronosticada),
-        'inv_total': fmt_num(inv_producto),
-        'operarios': int(cargar_operarios()['operarios']),  # Operarios generales
-        'mape': f"{mape_producto:.2f}%",
-        'n_productos': 1,
-        'fecha': hoy.strftime('%d/%m/%Y'),
-        'precio_producto': fmt_moneda(precio_producto),
+        'inv_total':        fmt_num(inv_producto),
+        'operarios':        int(cargar_operarios()['operarios']),
+        'mape':             f"{mape_producto:.2f}%",
+        'n_productos':      1,
+        'fecha':            hoy.strftime('%d/%m/%Y'),
+        'precio_producto':  fmt_moneda(precio_producto),
     })
-
 
 # ─── API: GRÁFICOS DASHBOARD ─────────────────────────────────────────────────
 
@@ -387,6 +384,7 @@ def api_grafico_demanda_historica():
     meses = int(request.args.get('meses', 12))
     modo = request.args.get('modo', 'produccion')
     fecha_actual = request.args.get('fecha_actual')
+    tipo = request.args.get('tipo', 'demanda')
 
     df_dem = cargar_demanda()
     df_pron = cargar_pronosticos()
@@ -395,23 +393,28 @@ def api_grafico_demanda_historica():
     if producto != 'Todos':
         nombres = [p for p in nombres if p == producto]
 
-    fig, ax = plt.subplots(figsize=(20, 6))
-    estilo_base(ax, 'Demanda Histórica vs Pronóstico', 'Mes', 'Unidades')
-
-    # Determinar fecha actual según modo
     if modo == 'prueba' and fecha_actual:
         hoy = pd.Timestamp(fecha_actual).normalize()
     else:
         hoy = pd.Timestamp.now().normalize()
-    
+
     mes_actual = hoy.replace(day=1)
-    # Mostrar últimos 12 meses históricos
     fecha_inicio_hist = mes_actual - pd.DateOffset(months=12)
-    df_hist = df_dem[df_dem['Mes'] >= fecha_inicio_hist].copy()
+    df_hist = df_dem[(df_dem['Mes'] >= fecha_inicio_hist) & (df_dem['Mes'] < mes_actual)].copy()
+
+    if tipo == 'ventas':
+        titulo = 'Ventas Históricas vs Pronóstico'
+        ylabel = 'Ventas ($)'
+    else:
+        titulo = 'Demanda Histórica vs Pronóstico'
+        ylabel = 'Unidades'
+
+    fig, ax = plt.subplots(figsize=(20, 6))
+    estilo_base(ax, titulo, 'Mes', ylabel)
 
     handles = []
     for i, prod in enumerate(nombres):
-        col = f'Demanda_{prod}'
+        col = f'Demanda_{prod}' if tipo == 'demanda' else f'Ventas_{prod}'
         if col not in df_hist.columns:
             continue
         serie = df_hist.set_index('Mes')[col].astype(float)
@@ -420,39 +423,42 @@ def api_grafico_demanda_historica():
                 linewidth=1.8, color=color, label=prod)
         handles.append(mpatches.Patch(color=color, label=prod))
 
-        # Pronóstico
-        col_pron = f'Pronostico_Demanda_{prod}'
+        # Pronóstico — solo desde mes_actual en adelante
+        col_pron = f'Pronostico_Demanda_{prod}' if tipo == 'demanda' else f'Pronostico_Ventas_{prod}'
         if not df_pron.empty and col_pron in df_pron.columns:
             df_pf = df_pron[df_pron['Mes'] >= mes_actual].head(meses)
             if not df_pf.empty:
                 pron_serie = df_pf.set_index('Mes')[col_pron]
-                # Unir con último punto histórico para continuidad
-                if len(serie) > 0:
-                    ult_fecha = serie.index[-1]
-                    ult_val = serie.values[-1]
-                    pron_x = pd.Index([ult_fecha]).append(pron_serie.index)
-                    pron_y = np.concatenate([[ult_val], pron_serie.values])
+                # Punto de conexión: último dato histórico real disponible
+                df_hist_prod = df_dem[(df_dem['Mes'] < mes_actual) & (df_dem[col] > 0)] if col in df_dem.columns else pd.DataFrame()
+                if not df_hist_prod.empty:
+                    ult_fecha = pd.Timestamp(df_hist_prod['Mes'].max())
+                    ult_val = float(df_hist_prod.loc[df_hist_prod['Mes'] == ult_fecha, col].values[0])
+                    # Conectar desde el último histórico hasta el primer pronóstico
+                    primer_pron_fecha = pron_serie.index[0]
+                    pron_x = pd.DatetimeIndex([ult_fecha, primer_pron_fecha]).append(pron_serie.index[1:])
+                    pron_y = np.concatenate([[ult_val, pron_serie.values[0]], pron_serie.values[1:]])
                 else:
                     pron_x = pron_serie.index
                     pron_y = pron_serie.values
                 ax.plot(pron_x, pron_y, '--', linewidth=1.5,
                         color=FORECAST_COLOR, alpha=0.9)
 
-    # Línea vertical mes actual
     ax.axvline(x=mes_actual, color='#AAAAAA', linestyle=':', linewidth=1)
+
+    if tipo == 'ventas':
+        ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(
+            lambda v, _: f'${v:,.0f}'))
 
     pron_patch = mpatches.Patch(color=FORECAST_COLOR, label='Pronóstico', linestyle='--')
     if handles:
         ax.legend(handles=handles + [pron_patch], fontsize=14, loc='upper left',
                   framealpha=0.8, ncol=min(len(handles) + 1, 4))
 
-    # Formatear fechas en español
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
-    # ax.set_xticklabels([format_fecha_espanol(date) for date in ax.get_xticks()])
     plt.xticks(rotation=30, ha='right', fontsize=14)
     fig.tight_layout(pad=1.0)
     return jsonify({'img': fig_to_base64(fig)})
-
 
 @app.route('/api/grafico_pronostico_barras')
 def api_grafico_pronostico_barras():
@@ -473,7 +479,6 @@ def api_grafico_pronostico_barras():
         ax.text(0.5, 0.5, 'Sin datos de pronóstico. Ejecute el cálculo.', ha='center', va='center')
         return jsonify({'img': fig_to_base64(fig)})
 
-    # Determinar fecha actual según modo
     if modo == 'prueba' and fecha_actual:
         mes_actual = pd.Timestamp(fecha_actual).replace(day=1)
     else:
@@ -502,15 +507,17 @@ def api_grafico_pronostico_barras():
                       edgecolor='white', linewidth=0.5)
         for bar, v in zip(bars, vals):
             if v > 0:
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 2,
-                        str(int(round(v))), ha='center', va='bottom', fontsize=13, color='#333333')
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() / 2,
+                        str(int(round(v))),
+                        ha='center', va='center',
+                        fontsize=20, fontweight='bold', color='white')
 
     ax.set_xticks(x)
     ax.set_xticklabels(etiq, fontsize=16)
     ax.legend(fontsize=14, framealpha=0.8)
     fig.tight_layout(pad=1.0)
     return jsonify({'img': fig_to_base64(fig)})
-
 
 @app.route('/api/grafico_ventas_pronostico')
 def api_grafico_ventas_pronostico():
@@ -574,7 +581,6 @@ def api_grafico_ventas_pronostico():
     fig.tight_layout(pad=1.0)
     return jsonify({'img': fig_to_base64(fig)})
 
-
 @app.route('/api/grafico_pap_resumen')
 def api_grafico_pap_resumen():
     producto = request.args.get('producto', 'Todos')
@@ -607,18 +613,23 @@ def api_grafico_pap_resumen():
         ax.text(0.5, 0.5, 'Sin datos', ha='center', va='center')
         return jsonify({'img': fig_to_base64(fig)})
 
-    # Gráfico de costos por producto
-    fig, axes = plt.subplots(1, 2, figsize=(24, 8))
+    # Mostrar valores individuales solo cuando: 1 producto O (varios productos Y 3 meses)
+    mostrar_vals_individuales = (len(pap_dict) == 1) or (len(pap_dict) > 1 and meses == 3)
 
-    # Barras apiladas: costos por mes por producto
+    fig, axes = plt.subplots(1, 2, figsize=(28, 8))
+
+    # ── Barras apiladas: costos ──────────────────────────────────────
     ax1 = axes[0]
-    estilo_base(ax1, 'Costo Total por Mes', 'Mes', 'Costo ($')
+    estilo_base(ax1, 'Costo Total por Mes', 'Mes', 'Costo ($)')
     all_fechas = sorted(set(
         f for df in pap_dict.values() for f in df['Mes'].tolist()
     ))
     etiq = [format_fecha_espanol(f) for f in all_fechas]
     x = np.arange(len(all_fechas))
     bottom = np.zeros(len(all_fechas))
+
+    acum_vals = {j: 0.0 for j in range(len(all_fechas))}
+
     for i, (prod, df) in enumerate(pap_dict.items()):
         vals = []
         for f in all_fechas:
@@ -626,25 +637,47 @@ def api_grafico_pap_resumen():
             vals.append(float(row['Costo_total'].values[0]) if not row.empty else 0)
         ax1.bar(x, vals, bottom=bottom, color=color_producto(i),
                 label=prod, alpha=0.88, edgecolor='white', linewidth=0.5)
-        # Agregar valores sobre las barras
-        for j, (bar_val, bar_bottom) in enumerate(zip(vals, bottom)):
-            total_val = bar_val + bar_bottom
-            if total_val > 0:
-                ax1.text(j, total_val, f'${int(total_val):,}', 
-                        ha='center', va='bottom', fontsize=11, color='#333333')
-        bottom += np.array(vals)
+
+        if mostrar_vals_individuales:
+            for j, (bar_val, bar_bottom) in enumerate(zip(vals, bottom)):
+                mid = bar_bottom + bar_val / 2
+                if bar_val > 0:
+                    ax1.text(j, mid, f'${int(bar_val):,}',
+                             ha='center', va='center', fontsize=18,
+                             fontweight='bold', color='white')
+
+        for j, v in enumerate(vals):
+            acum_vals[j] += v
+        bottom = bottom + np.array(vals)
+
+    # Totales siempre encima
+    for j, total_val in acum_vals.items():
+        if total_val > 0:
+            ax1.text(j, total_val + max(acum_vals.values()) * 0.01,
+                     f'${int(total_val):,}',
+                     ha='center', va='bottom', fontsize=18,
+                     fontweight='bold', color='#333333')
 
     ax1.set_xticks(x)
-    ax1.set_xticklabels(etiq, fontsize=15, rotation=20, ha='right')
+    ax1.set_xticklabels(etiq, fontsize=18, rotation=20, ha='right')
     ax1.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f'${v:,.0f}'))
-    ax1.legend(fontsize=14, framealpha=0.8)
+    ax1.legend(fontsize=16, framealpha=0.8)
 
-    # Producción planificada vs demanda
+    # ── Producción planificada vs demanda ────────────────────────────
     ax2 = axes[1]
     estilo_base(ax2, 'Producción Planificada vs Demanda', 'Mes', 'Unidades')
-    width = 0.35
     n_prod = len(pap_dict)
     w = 0.6 / max(n_prod, 1)
+
+    all_vals_flat = []
+    for prod, df in pap_dict.items():
+        for f in all_fechas:
+            row = df[df['Mes'] == f]
+            if not row.empty:
+                all_vals_flat.append(int(row['Demanda'].values[0]))
+                all_vals_flat.append(int(row['Unidades_producidas'].values[0]))
+    max_val = max(all_vals_flat + [1])
+
     for i, (prod, df) in enumerate(pap_dict.items()):
         dem_vals = []
         prod_vals = []
@@ -653,19 +686,36 @@ def api_grafico_pap_resumen():
             dem_vals.append(int(row['Demanda'].values[0]) if not row.empty else 0)
             prod_vals.append(int(row['Unidades_producidas'].values[0]) if not row.empty else 0)
         off = (i - (n_prod - 1) / 2) * w
-        ax2.bar(x + off, prod_vals, w * 0.85, color=color_producto(i),
-                label=prod, alpha=0.85, edgecolor='white')
-        ax2.plot(x + off, dem_vals, 'x', color='#CC0000', markersize=5)
+        bars = ax2.bar(x + off, prod_vals, w * 0.85, color=color_producto(i),
+                       label=prod, alpha=0.85, edgecolor='white')
+
+        if mostrar_vals_individuales:
+            for bar, v in zip(bars, prod_vals):
+                if v > 0:
+                    ax2.text(bar.get_x() + bar.get_width() / 2,
+                             bar.get_height() / 2,
+                             str(v), ha='center', va='center',
+                             fontsize=16, fontweight='bold', color='white')
+
+        for j, (dv, bar) in enumerate(zip(dem_vals, bars)):
+            cx = bar.get_x() + bar.get_width() / 2
+            half = w * 0.85 / 2 * 1.3
+            ax2.plot([cx - half, cx + half], [dv, dv],
+                     color='#EE1111', linewidth=3, solid_capstyle='round', zorder=5)
+            if mostrar_vals_individuales:
+                ax2.text(cx, dv + max_val * 0.015, str(dv),
+                         ha='center', va='bottom', fontsize=14,
+                         fontweight='bold', color='#CC0000')
 
     ax2.set_xticks(x)
-    ax2.set_xticklabels(etiq, fontsize=15, rotation=20, ha='right')
-    ax2.legend(fontsize=14, framealpha=0.8)
-    ax2.plot([], [], 'x', color='#CC0000', label='Demanda')
-    ax2.legend(fontsize=14, framealpha=0.8)
+    ax2.set_xticklabels(etiq, fontsize=18, rotation=20, ha='right')
+    ax2.set_ylim(0, max_val * 1.22)
+    handles2, labels2 = ax2.get_legend_handles_labels()
+    dem_line = matplotlib.lines.Line2D([0], [0], color='#EE1111', linewidth=3, label='Demanda')
+    ax2.legend(handles=handles2 + [dem_line], fontsize=16, framealpha=0.8)
 
     fig.tight_layout(pad=1.5)
     return jsonify({'img': fig_to_base64(fig)})
-
 
 # ─── API: TABLA PRONÓSTICO ───────────────────────────────────────────────────
 
@@ -729,42 +779,42 @@ def api_tabla_pap():
     filas = []
     for prod in nombres:
         inv_ini = 25
+        precio_prod = 3.5
         for _, row in df_prod.iterrows():
             nm = f"{row['Nombre']} {int(row['Tamaño (g)'])} g"
             if nm == prod and 'Inventario' in row:
                 inv_ini = int(row['Inventario'])
+                precio_prod = float(row.get('Precio Unitario ($)', 3.5))
                 break
         df_pap = calcular_pap_producto(prod, df_dem, df_pron, op, inv_ini, meses, modo, fecha_actual)
-        precio_prod = df_pap['Precio_Produccion'].iloc[0] if 'Precio_Produccion' in df_pap.columns else 3.5
         for _, r in df_pap.iterrows():
             filas.append({
-                'Producto': prod,
-                'Mes': r['Mes'].strftime('%b %Y'),
-                'Precio Producción': fmt_moneda(precio_prod),
-                'Demanda': fmt_num(r['Demanda']),
-                'Días': int(r['Dias']),
-                'Unid/Op': int(r['Unidades_por_operario']),
-                'Op. Req.': int(r['Operarios_requeridos']),
-                'Op. Act.': int(r['Operarios_actuales']),
-                'Contrat.': int(r['Operarios_contratados']),
-                'Despidos': int(r['Operarios_despedidos']),
-                'Op. Util.': int(r['Operarios_utilizados']),
-                'Producido': fmt_num(r['Unidades_producidas']),
-                'Disponible': fmt_num(r['Unidades_disponibles']),
-                'Inv. Final': fmt_num(r['Inventario_final']),
-                'C. Contratar': fmt_moneda(r['Costo_contratar']),
-                'C. Despedir': fmt_moneda(r['Costo_despedir']),
-                'C. M.O.': fmt_moneda(r['Costo_mano_obra']),
-                'C. Almacén': fmt_moneda(r['Costo_almacenamiento']),
-                'C. Total': fmt_moneda(r['Costo_total']),
+                'Mes':                  r['Mes'].strftime('%b %Y'),
+                'Costo Total':          fmt_moneda(r['Costo_total']),
+                'Costo Mano de Obra':   fmt_moneda(r['Costo_mano_obra']),
+                'Costo Almacén':        fmt_moneda(r['Costo_almacenamiento']),
+                'Precio Producción':    fmt_moneda(precio_prod),
+                'Demanda':              fmt_num(r['Demanda']),
+                'Días':                 int(r['Dias']),
+                'Unidades/Operario':    int(r['Unidades_por_operario']),
+                'Operarios Requeridos': int(r['Operarios_requeridos']),
+                'Operarios Actuales':   int(r['Operarios_actuales']),
+                'Contratados':          int(r['Operarios_contratados']),
+                'Despedidos':           int(r['Operarios_despedidos']),
+                'Operarios Utilizados': int(r['Operarios_utilizados']),
+                'Unidades Producidas':  fmt_num(r['Unidades_producidas']),
+                'Unidades Disponibles': fmt_num(r['Unidades_disponibles']),
+                'Inventario Final':     fmt_num(r['Inventario_final']),
+                'Costo Contratar':      fmt_moneda(r['Costo_contratar']),
+                'Costo Despedir':       fmt_moneda(r['Costo_despedir']),
             })
 
-    cols = ['Producto', 'Mes', 'Precio Producción', 'Demanda', 'Días', 'Unidades/Operario', 'Operarios Requeridos',
-            'Operarios Actuales', 'Contratados', 'Despedidos', 'Operarios Utilizados', 'Unidades Producidas',
-            'Unidades Disponibles', 'Inventario Final', 'Costo Contratar', 'Costo Despedir',
-            'Costo Mano de Obra', 'Costo Almacén', 'Costo Total']
+    cols = ['Mes', 'Costo Total', 'Costo Mano de Obra', 'Costo Almacén',
+            'Precio Producción', 'Demanda', 'Días', 'Unidades/Operario',
+            'Operarios Requeridos', 'Operarios Actuales', 'Contratados', 'Despedidos',
+            'Operarios Utilizados', 'Unidades Producidas', 'Unidades Disponibles',
+            'Inventario Final', 'Costo Contratar', 'Costo Despedir']
     return jsonify({'columnas': cols, 'filas': filas})
-
 
 @app.route('/api/pap_resumen')
 def api_pap_resumen():
@@ -840,10 +890,8 @@ def api_pap_resumen():
     
     return jsonify(resumen)
 
-
 @app.route('/api/pap_dashboard_tablas')
 def api_pap_dashboard_tablas():
-    """Retorna tablas PAP separadas por producto para el Dashboard cuando es Todos."""
     meses = int(request.args.get('meses', 3))
     modo = request.args.get('modo', 'produccion')
     fecha_actual = request.args.get('fecha_actual')
@@ -867,50 +915,52 @@ def api_pap_dashboard_tablas():
                 inv_ini = int(row.get('Inventario', 25))
                 precio_prod = float(row.get('Precio Unitario ($)', 3.5))
                 break
-        
+
         df_pap = calcular_pap_producto(prod, df_dem, df_pron, op, inv_ini, meses, modo, fecha_actual)
         df_pap['Precio_Produccion'] = precio_prod
-        
+        costo_prod = df_pap['Costo_total'].sum()
+        costo_total_horizonte += costo_prod
+
         filas = []
         for _, r in df_pap.iterrows():
             filas.append({
-                'Mes': r['Mes'].strftime('%b %Y'),
-                'Precio Producción': fmt_moneda(precio_prod),
-                'Demanda': fmt_num(r['Demanda']),
-                'Días': int(r['Dias']),
-                'Unidades/Operario': int(r['Unidades_por_operario']),
+                'Mes':                  r['Mes'].strftime('%b %Y'),
+                'Costo Total':          fmt_moneda(r['Costo_total']),
+                'Costo Mano de Obra':   fmt_moneda(r['Costo_mano_obra']),
+                'Costo Almacén':        fmt_moneda(r['Costo_almacenamiento']),
+                'Precio Producción':    fmt_moneda(precio_prod),
+                'Demanda':              fmt_num(r['Demanda']),
+                'Días':                 int(r['Dias']),
+                'Unidades/Operario':    int(r['Unidades_por_operario']),
                 'Operarios Requeridos': int(r['Operarios_requeridos']),
-                'Operarios Actuales': int(r['Operarios_actuales']),
-                'Contratados': int(r['Operarios_contratados']),
-                'Despedidos': int(r['Operarios_despedidos']),
+                'Operarios Actuales':   int(r['Operarios_actuales']),
+                'Contratados':          int(r['Operarios_contratados']),
+                'Despedidos':           int(r['Operarios_despedidos']),
                 'Operarios Utilizados': int(r['Operarios_utilizados']),
-                'Unidades Producidas': fmt_num(r['Unidades_producidas']),
+                'Unidades Producidas':  fmt_num(r['Unidades_producidas']),
                 'Unidades Disponibles': fmt_num(r['Unidades_disponibles']),
-                'Inventario Final': fmt_num(r['Inventario_final']),
-                'Costo Contratar': fmt_moneda(r['Costo_contratar']),
-                'Costo Despedir': fmt_moneda(r['Costo_despedir']),
-                'Costo Mano de Obra': fmt_moneda(r['Costo_mano_obra']),
-                'Costo Almacén': fmt_moneda(r['Costo_almacenamiento']),
-                'Costo Total': fmt_moneda(r['Costo_total']),
+                'Inventario Final':     fmt_num(r['Inventario_final']),
+                'Costo Contratar':      fmt_moneda(r['Costo_contratar']),
+                'Costo Despedir':       fmt_moneda(r['Costo_despedir']),
             })
-        
-        cols = ['Mes', 'Precio Producción', 'Demanda', 'Días', 'Unidades/Operario', 'Operarios Requeridos',
-                'Operarios Actuales', 'Contratados', 'Despedidos', 'Operarios Utilizados', 'Unidades Producidas',
-                'Unidades Disponibles', 'Inventario Final', 'Costo Contratar', 'Costo Despedir',
-                'Costo Mano de Obra', 'Costo Almacén', 'Costo Total']
-        
+
+        cols = ['Mes', 'Costo Total', 'Costo Mano de Obra', 'Costo Almacén',
+                'Precio Producción', 'Demanda', 'Días', 'Unidades/Operario',
+                'Operarios Requeridos', 'Operarios Actuales', 'Contratados', 'Despedidos',
+                'Operarios Utilizados', 'Unidades Producidas', 'Unidades Disponibles',
+                'Inventario Final', 'Costo Contratar', 'Costo Despedir']
+
         tablas_por_producto[prod] = {
             'columnas': cols,
             'filas': filas,
-            'costo_total': fmt_moneda(df_pap['Costo_total'].sum())
+            'costo_prod': fmt_moneda(costo_prod),
+            'costo_total': fmt_moneda(costo_prod),
         }
-        costo_total_horizonte += df_pap['Costo_total'].sum()
 
     return jsonify({
         'tablas': tablas_por_producto,
         'costo_total_horizonte': fmt_moneda(costo_total_horizonte)
     })
-
 
 # ─── API: TABLA DEMANDA ──────────────────────────────────────────────────────
 
@@ -996,13 +1046,12 @@ def api_tabla_ventas():
 
     return jsonify({'columnas': ['Mes'] + nombres, 'filas': list(reversed(filas))})
 
-
 @app.route('/api/grafico_ventas_historico')
 def api_grafico_ventas_historico():
     producto = request.args.get('producto', 'Todos')
     modo = request.args.get('modo', 'produccion')
     fecha_actual = request.args.get('fecha_actual')
-    
+
     df_dem = cargar_demanda()
     nombres = obtener_nombres_productos(df_dem)
 
@@ -1014,26 +1063,27 @@ def api_grafico_ventas_historico():
     fig, ax = plt.subplots(figsize=(20, 6))
     estilo_base(ax, 'Histórico de Ventas por Producto', 'Mes', 'Ventas ($)')
 
+    x = np.arange(len(df_recent))
+    etiq = [format_fecha_espanol(pd.Timestamp(m)) for m in df_recent['Mes']]
+    n = len(nombres)
+    w = 0.7 / max(n, 1)
+
     for i, prod in enumerate(nombres):
         col = f'Ventas_{prod}'
         if col not in df_recent.columns:
             continue
-        serie = df_recent.set_index('Mes')[col].fillna(0)
-        ax.fill_between(pd.to_datetime(serie.index), serie.values,
-                        alpha=0.35, color=color_producto(i))
-        ax.plot(pd.to_datetime(serie.index), serie.values,
-                marker='o', markersize=3.5, linewidth=1.8,
-                color=color_producto(i), label=prod)
+        vals = df_recent[col].fillna(0).values
+        off = (i - (n - 1) / 2) * w
+        ax.bar(x + off, vals, w * 0.9, color=color_producto(i),
+               label=prod, alpha=0.88, edgecolor='white', linewidth=0.5)
 
     ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(
         lambda v, _: f'${v:,.0f}'))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
-    # ax.set_xticklabels([format_fecha_espanol(pd.Timestamp(date)) for date in ax.get_xticks()])
-    plt.xticks(rotation=30, ha='right', fontsize=15)
+    ax.set_xticks(x)
+    ax.set_xticklabels(etiq, fontsize=14, rotation=40, ha='right')
     ax.legend(fontsize=16, framealpha=0.8)
     fig.tight_layout(pad=1.0)
     return jsonify({'img': fig_to_base64(fig)})
-
 
 # ─── API: ACCIONES ───────────────────────────────────────────────────────────
 

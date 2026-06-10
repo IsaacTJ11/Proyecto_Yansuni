@@ -53,12 +53,16 @@ if __name__ == '__main__':
 
     init_data()
 
-    # Calcular pronóstico inicial si no existe
-    from calculos import ejecutar_pronostico_completo
-    if not os.path.exists(os.path.join('data', 'pronosticos.csv')):
-        print("Calculando pronóstico inicial (puede tomar unos segundos)...")
-        ejecutar_pronostico_completo(12)
-        print("¡Pronóstico calculado!")
+    # Siempre recalcular pronóstico al arrancar (12 meses)
+    # para garantizar datos frescos independientemente del modo guardado
+    from calculos import ejecutar_pronostico_completo, cargar_sesion
+    sesion = cargar_sesion() or {}
+    modo = sesion.get('modo', 'produccion')
+    fecha_actual = sesion.get('fecha_actual')
+
+    print(f"Calculando pronóstico inicial (modo={modo}, 12 meses)...")
+    ejecutar_pronostico_completo(12, modo, fecha_actual)
+    print("¡Pronóstico calculado!")
 
     print("\n✅ Servidor iniciado en http://localhost:5050")
     print("   Presione Ctrl+C para detener\n")

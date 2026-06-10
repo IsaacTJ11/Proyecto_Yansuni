@@ -175,6 +175,25 @@
   }
   .ctrl-label { font-size: 11px; color: var(--gray-500); white-space: nowrap; }
 
+  .config-menu-item {
+    padding: 11px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+  .config-menu-item:hover {
+    background: var(--gray-100);
+    color: var(--brown-dark);
+  }
+  .config-menu-item + .config-menu-item {
+    border-top: 1px solid var(--gray-100);
+  }
+
   /* ─── BUTTONS ───────────────────────────────────────────── */
   .btn {
     padding: 7px 16px;
@@ -294,21 +313,21 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 18px;
   }
   table th {
     background: linear-gradient(90deg, var(--brown-dark), #8B4A10);
     color: #fff;
-    padding: 9px 12px;
+    padding: 10px 14px;
     text-align: left;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 16.5px;
     white-space: nowrap;
     position: sticky;
     top: 0;
   }
   table td {
-    padding: 8px 12px;
+    padding: 9px 14px;
     border-bottom: 1px solid var(--gray-100);
     white-space: nowrap;
   }
@@ -511,8 +530,20 @@
       </button>
     </div>
     <div id="topbar-fecha" style="font-size:13px;color:var(--gray-500);"></div>
-    <button class="btn btn-gold" onclick="abrirModalOperarios()">⚙️ Operarios</button>
-    <button class="btn btn-green" onclick="abrirModalProducto()">＋ Producto</button>
+    <div class="config-menu-wrap" style="position:relative;">
+      <button class="btn btn-gold" id="btn-config" onclick="toggleConfigMenu(event)">⚙️ Configuración ▾</button>
+      <div id="config-dropdown" style="
+          display:none; position:absolute; top:calc(100% + 6px); right:0;
+          background:#fff; border:1px solid var(--gray-200); border-radius:10px;
+          box-shadow:var(--shadow-md); min-width:170px; z-index:500; overflow:hidden;">
+        <div class="config-menu-item" onclick="abrirModalProducto(); closeConfigMenu()">
+          <span>🎁</span> Productos
+        </div>
+        <div class="config-menu-item" onclick="abrirModalOperarios(); closeConfigMenu()">
+          <span>👷</span> Operarios
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="content">
@@ -575,42 +606,38 @@
       </div>
 
       <!-- Charts row 1 -->
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">📈 Demanda Histórica vs Pronóstico</div>
-          </div>
-          <div class="card-body">
-            <div id="chart-hist"><div class="spinner"></div></div>
-          </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📈 Demanda Histórica vs Pronóstico</div>
         </div>
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">🏭 Pronóstico de Producción Planificada</div>
-          </div>
-          <div class="card-body">
-            <div id="chart-prod-plan"><div class="spinner"></div></div>
-          </div>
+        <div class="card-body">
+          <div id="chart-hist"><div class="spinner"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🏭 Pronóstico de Producción Planificada</div>
+        </div>
+        <div class="card-body">
+          <div id="chart-prod-plan"><div class="spinner"></div></div>
         </div>
       </div>
 
       <!-- Charts row 2 -->
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">💰 Pronóstico de Ventas</div>
-          </div>
-          <div class="card-body">
-            <div id="chart-ventas"><div class="spinner"></div></div>
-          </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">💰 Pronóstico de Ventas</div>
         </div>
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">🏭 Resumen PAP – Costos y Producción</div>
-          </div>
-          <div class="card-body">
-            <div id="chart-pap-dash"><div class="spinner"></div></div>
-          </div>
+        <div class="card-body">
+          <div id="chart-ventas"><div class="spinner"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🏭 Resumen PAP – Costos y Producción</div>
+        </div>
+        <div class="card-body">
+          <div id="chart-pap-dash"><div class="spinner"></div></div>
         </div>
       </div>
 
@@ -631,6 +658,12 @@
         <span class="ctrl-label">Producto:</span>
         <select id="dem-filtro-prod" onchange="actualizarDemanda()">
           <option value="Todos">Todos</option>
+        </select>
+        <span class="ctrl-label">Horizonte pronóstico:</span>
+        <select id="dem-meses" onchange="actualizarDemanda()">
+          <option value="3">3 meses</option>
+          <option value="6" selected>6 meses</option>
+          <option value="12">12 meses</option>
         </select>
         <button class="btn btn-primary" onclick="openModalDemanda()">✏️ Editar Demanda</button>
       </div>
@@ -667,10 +700,6 @@
         <div class="card-body"><div id="chart-ven-hist"><div class="spinner"></div></div></div>
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">📈 Pronóstico de Ventas</div></div>
-        <div class="card-body"><div id="chart-ven-pron"><div class="spinner"></div></div></div>
-      </div>
-      <div class="card">
         <div class="card-header"><div class="card-title">📋 Tabla de Ventas Históricas</div></div>
         <div class="card-body">
           <div class="table-wrap" id="table-ventas"><div class="spinner"></div></div>
@@ -698,15 +727,13 @@
         </select>
         <button class="btn btn-primary" onclick="calcularPronostico()">🔄 Recalcular</button>
       </div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header"><div class="card-title">📈 Demanda Histórica vs Pronóstico</div></div>
-          <div class="card-body"><div id="chart-pron-hist"><div class="spinner"></div></div></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">🏭 Producción Planificada</div></div>
-          <div class="card-body"><div id="chart-pron-barras"><div class="spinner"></div></div></div>
-        </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📈 Demanda Histórica vs Pronóstico</div></div>
+        <div class="card-body"><div id="chart-pron-hist"><div class="spinner"></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">🏭 Producción Planificada</div></div>
+        <div class="card-body"><div id="chart-pron-barras"><div class="spinner"></div></div></div>
       </div>
       <div class="card">
         <div class="card-header"><div class="card-title">📋 Tabla de Pronóstico</div></div>
@@ -1098,10 +1125,43 @@
 // ═══════════════════════════════════════════════════════════════
 // ESTADO Y UTILIDADES
 // ═══════════════════════════════════════════════════════════════
+function fmt_moneda(val) {
+  if (val === null || val === undefined || isNaN(parseFloat(val))) return '$0.00';
+  return '$' + parseFloat(val).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmt_num(val) {
+  if (val === null || val === undefined) return '0';
+  return parseInt(val).toLocaleString('en-US');
+}
+
 let productos = [];
 let paginaActual = 'dashboard';
 let productoSeleccionado = 'Todos';  // Estado global del producto
 let horizonteSeleccionado = '3';    // Estado global del horizonte (meses)
+
+function fmt_moneda(val) {
+  if (val === null || val === undefined) return '$0.00';
+  return '$' + parseFloat(val).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function fmt_num(val) {
+  if (val === null || val === undefined) return '0';
+  return parseInt(val).toLocaleString('en-US');
+}
+
+function toggleConfigMenu(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('config-dropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+function closeConfigMenu() {
+  document.getElementById('config-dropdown').style.display = 'none';
+}
+// Cerrar al click fuera
+document.addEventListener('click', function(e) {
+  const wrap = document.querySelector('.config-menu-wrap');
+  if (wrap && !wrap.contains(e.target)) closeConfigMenu();
+});
 
 function showPage(page, comingTitle) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1159,9 +1219,13 @@ function renderChart(containerId, imgB64) {
   document.getElementById(containerId).appendChild(img);
 }
 
-function renderTable(containerId, data) {
+function renderTable(containerIdOrEl, data) {
+  const container = typeof containerIdOrEl === 'string'
+    ? document.getElementById(containerIdOrEl)
+    : containerIdOrEl;
+  if (!container) return;
   if (!data.filas || data.filas.length === 0) {
-    document.getElementById(containerId).innerHTML =
+    container.innerHTML =
       '<p style="color:var(--gray-500);font-size:12px;padding:10px">Sin datos disponibles.</p>';
     return;
   }
@@ -1174,7 +1238,7 @@ function renderTable(containerId, data) {
     html += '</tr>';
   });
   html += '</tbody></table>';
-  document.getElementById(containerId).innerHTML = html;
+  container.innerHTML = html;
 }
 
 async function fetchJSON(url) {
@@ -1250,58 +1314,57 @@ function actualizarEstadoEdicion() {
 // ─── MODO Y FECHA ──────────────────────────────────────────────────
 async function abrirModalModo() {
   const res = await fetchJSON('/api/get_modo');
-  modoActual = res.modo || 'produccion';
-  fechaActual = res.fecha_actual;
-  
+  modoActual   = res.modo || 'produccion';
+  fechaActual  = res.fecha_actual;
+
   document.getElementById('modo-select').value = modoActual;
-  
-  if (modoActual === 'prueba' && fechaActual) {
-    const [year, month] = fechaActual.split('-');
-    document.getElementById('fecha-year').value = year;
-    document.getElementById('fecha-month').value = month;
-    document.getElementById('fecha-selector-group').style.display = 'block';
-  } else {
-    document.getElementById('fecha-selector-group').style.display = 'none';
-  }
-  
-  // Llenar selector de años solo hasta el año actual
-  const yearSelect = document.getElementById('fecha-year');
-  const currentYear = new Date().getFullYear();
+
+  // Llenar selector de años (últimos 5 hasta el actual)
+  const yearSelect  = document.getElementById('fecha-year');
+  const monthSelect = document.getElementById('fecha-month');
+  const hoy         = new Date();
+  const currentYear = hoy.getFullYear();
+  const currentMonth = hoy.getMonth() + 1; // 1-12
+
   yearSelect.innerHTML = '';
-  // Mostrar últimos 5 años hasta el actual
   for (let y = currentYear - 5; y <= currentYear; y++) {
     yearSelect.innerHTML += `<option value="${y}">${y}</option>`;
   }
-  
-  // Llenar selector de meses
-  const monthSelect = document.getElementById('fecha-month');
-  const currentMonth = new Date().getMonth() + 1;
-  
-  // Si el año seleccionado es el actual, limitar meses al mes actual
-  const selectedYear = parseInt(yearSelect.value);
-  monthSelect.innerHTML = '';
-  
-  const maxMonth = (selectedYear === currentYear) ? currentMonth : 12;
-  
-  for (let m = 1; m <= maxMonth; m++) {
-    const monthNum = String(m).padStart(2, '0');
-    const monthName = new Date(2024, m - 1).toLocaleDateString('es-ES', { month: 'long' });
-    monthSelect.innerHTML += `<option value="${monthNum}">${monthName.charAt(0).toUpperCase() + monthName.slice(1)}</option>`;
+
+  // Determinar valores a preseleccionar
+  let selYear, selMonth;
+  if (modoActual === 'prueba' && fechaActual) {
+    // Modo prueba activo → usar fecha guardada
+    [selYear, selMonth] = fechaActual.split('-').map(Number);
+  } else {
+    // Producción o sin fecha → sugerir mes actual real
+    selYear  = currentYear;
+    selMonth = currentMonth;
   }
-  
-  // Agregar event listener al selector de año para actualizar meses
-  yearSelect.onchange = function() {
-    const newYear = parseInt(this.value);
-    const newMaxMonth = (newYear === currentYear) ? currentMonth : 12;
-    
+
+  yearSelect.value = selYear;
+
+  // Llenar meses respetando límite si año = actual
+  function poblarMeses(anio) {
+    const maxM = (anio === currentYear) ? currentMonth : 12;
     monthSelect.innerHTML = '';
-    for (let m = 1; m <= newMaxMonth; m++) {
-      const monthNum = String(m).padStart(2, '0');
-      const monthName = new Date(2024, m - 1).toLocaleDateString('es-ES', { month: 'long' });
-      monthSelect.innerHTML += `<option value="${monthNum}">${monthName.charAt(0).toUpperCase() + monthName.slice(1)}</option>`;
+    for (let m = 1; m <= maxM; m++) {
+      const mm   = String(m).padStart(2, '0');
+      const name = new Date(2024, m - 1).toLocaleDateString('es-ES', { month: 'long' });
+      monthSelect.innerHTML += `<option value="${mm}">${name.charAt(0).toUpperCase() + name.slice(1)}</option>`;
     }
+  }
+
+  poblarMeses(selYear);
+  monthSelect.value = String(selMonth).padStart(2, '0');
+
+  yearSelect.onchange = function () {
+    poblarMeses(parseInt(this.value));
   };
-  
+
+  document.getElementById('fecha-selector-group').style.display =
+    modoActual === 'prueba' ? 'block' : 'none';
+
   document.getElementById('modal-modo').classList.add('open');
 }
 
@@ -1537,9 +1600,13 @@ async function cargarProductos() {
 
 // ─── INIT ─────────────────────────────────────────────────────
 (async function init() {
-  await cargarProductos();
-  
-  // Cargar estado de sesión
+  // Cargar modo PRIMERO para que actualizarDashboard use el correcto
+  const modoRes = await fetchJSON('/api/get_modo');
+  modoActual = modoRes.modo || 'produccion';
+  fechaActual = modoRes.fecha_actual;
+  actualizarDisplayModo();
+
+  // Cargar sesión
   const sesionRes = await fetchJSON('/api/sesion');
   autenticado = sesionRes.autenticado || false;
   if (autenticado) {
@@ -1547,63 +1614,74 @@ async function cargarProductos() {
     document.getElementById('btn-login').classList.remove('btn-primary');
     document.getElementById('btn-login').classList.add('btn-ghost');
   }
-  
-  // Cargar modo actual
-  const modoRes = await fetchJSON('/api/get_modo');
-  modoActual = modoRes.modo || 'produccion';
-  fechaActual = modoRes.fecha_actual;
-  actualizarDisplayModo();
-  
+
   document.getElementById('topbar-fecha').textContent =
     new Date().toLocaleDateString('es-EC', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-  
-  // Vista por defecto: 3 meses pronóstico con todos los productos
+
+  // Estado inicial de selectores
   horizonteSeleccionado = '3';
   productoSeleccionado = 'Todos';
-  
-  document.getElementById('pron-meses').value = '3';
-  document.getElementById('dash-filtro-prod').value = 'Todos';
-  document.getElementById('pron-filtro-prod').value = 'Todos';
-  document.getElementById('pap-meses').value = '3';
-  document.getElementById('pap-filtro-prod').value = 'Todos';
-  
-  // Agregar event listeners para selectores de horizonte
-  const horizonteSelectores = ['dash-meses', 'pron-meses', 'pap-meses'];
-  horizonteSelectores.forEach(id => {
+
+  // Cargar productos y poblar selectores
+  await cargarProductos();
+
+  // Fijar valores de selectores DESPUÉS de poblar
+  ['dash-filtro-prod','dem-filtro-prod','ven-filtro-prod',
+   'pron-filtro-prod','pap-filtro-prod'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = 'Todos';
+  });
+  ['dash-meses','pron-meses','pap-meses'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '3';
+  });
+  const pronMeses = document.getElementById('pron-meses');
+  if (pronMeses) pronMeses.value = '3';
+  const papMeses = document.getElementById('pap-meses');
+  if (papMeses) papMeses.value = '3';
+
+  // Agregar event listeners para horizonte
+  ['dash-meses', 'pron-meses', 'pap-meses'].forEach(id => {
     const sel = document.getElementById(id);
     if (sel) {
       sel.removeEventListener('change', onCambioHorizonte);
       sel.addEventListener('change', onCambioHorizonte);
     }
   });
-  
-  actualizarDashboard();
-  cargarMeses();
+
+  await cargarMeses();
+
+  // Dashboard al final, cuando todo está listo
+  await actualizarDashboard();
 })();
 
 // ═══════════════════════════════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════
 async function actualizarDashboard() {
-  const prod = document.getElementById('dash-filtro-prod')?.value || 'Todos';
-  const meses = document.getElementById('dash-meses')?.value || 6;
-  
+  const prod      = document.getElementById('dash-filtro-prod')?.value || 'Todos';
+  const meses     = document.getElementById('dash-meses')?.value || 6;
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
-  // KPIs - usar endpoint específico si se seleccionó un producto
-  const kpiEndpoint = prod === 'Todos' 
-    ? '/api/dashboard_kpis' 
+  // KPIs — ahora siempre pasan modo y fecha
+  const kpiUrl = prod === 'Todos'
+    ? `/api/dashboard_kpis?x=1${modoParams}`
     : `/api/dashboard_kpis_producto?producto=${encodeURIComponent(prod)}${modoParams}`;
-  const kpis = await fetchJSON(kpiEndpoint);
-  
-  document.getElementById('kpi-dem').textContent = kpis.dem_pronosticada;
-  document.getElementById('kpi-inv').textContent = kpis.inv_total;
-  document.getElementById('kpi-op').textContent = kpis.operarios;
-  document.getElementById('kpi-mape').textContent = kpis.mape;
+
+  const kpis = await fetchJSON(kpiUrl);
+  document.getElementById('kpi-dem').textContent   = kpis.dem_pronosticada;
+  document.getElementById('kpi-inv').textContent   = kpis.inv_total;
+  document.getElementById('kpi-op').textContent    = kpis.operarios;
+  document.getElementById('kpi-mape').textContent  = kpis.mape;
   document.getElementById('kpi-prods').textContent = kpis.n_productos;
   document.getElementById('kpi-fecha').textContent = kpis.fecha;
 
-  // Cargar gráficos en paralelo
+  // Spinners
+  ['chart-hist','chart-prod-plan','chart-ventas','chart-pap-dash'].forEach(id => {
+    document.getElementById(id).innerHTML = '<div class="spinner"></div>';
+  });
+
+  // Gráficos en paralelo
   const [hist, barras, ventas, pap] = await Promise.all([
     fetchJSON(`/api/grafico_demanda_historica?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
     fetchJSON(`/api/grafico_pronostico_barras?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
@@ -1611,36 +1689,40 @@ async function actualizarDashboard() {
     fetchJSON(`/api/grafico_pap_resumen?producto=${encodeURIComponent(prod)}&meses=3${modoParams}`),
   ]);
 
-  renderChart('chart-hist', hist.img);
+  renderChart('chart-hist',      hist.img);
   renderChart('chart-prod-plan', barras.img);
-  renderChart('chart-ventas', ventas.img);
-  renderChart('chart-pap-dash', pap.img);
+  renderChart('chart-ventas',    ventas.img);
+  renderChart('chart-pap-dash',  pap.img);
 
   // Tabla PAP resumen
+  document.getElementById('table-pap-resumen').innerHTML = '<div class="spinner"></div>';
+
   if (prod === 'Todos') {
-    // Cargar tablas separadas por producto
     const papTablas = await fetchJSON(`/api/pap_dashboard_tablas?meses=3${modoParams}`);
-    
-    // Mostrar costo total del horizonte
-    const costoTotalDiv = document.createElement('div');
-    costoTotalDiv.style.cssText = 'background:var(--brown-med);color:white;padding:16px;border-radius:10px;margin-bottom:16px;text-align:center;';
-    costoTotalDiv.innerHTML = `<h3 style="margin:0 0 8px 0;font-size:16px;">Costo Total del Horizonte (${meses} meses)</h3><div style="font-size:24px;font-weight:bold;">${papTablas.costo_total_horizonte}</div>`;
-    document.getElementById('table-pap-resumen').innerHTML = '';
-    document.getElementById('table-pap-resumen').appendChild(costoTotalDiv);
-    
-    // Crear tabla separada para cada producto
+    const wrap = document.getElementById('table-pap-resumen');
+    wrap.innerHTML = '';
+
+    const costoDiv = document.createElement('div');
+    costoDiv.style.cssText = 'background:var(--brown-med);color:white;padding:16px;border-radius:10px;margin-bottom:20px;text-align:center;';
+    costoDiv.innerHTML = `<h3 style="margin:0 0 6px 0;font-size:16px;">Costo Total del Horizonte (3 meses)</h3>
+                          <div style="font-size:26px;font-weight:bold;">${papTablas.costo_total_horizonte}</div>`;
+    wrap.appendChild(costoDiv);
+
     for (const [prodNombre, tablaData] of Object.entries(papTablas.tablas)) {
-      const prodDiv = document.createElement('div');
-      prodDiv.style.cssText = 'margin-bottom:24px;';
-      prodDiv.innerHTML = `<h4 style="color:var(--brown-dark);margin:0 0 12px 0;font-size:15px;">${prodNombre}</h4>`;
+      const section = document.createElement('div');
+      section.style.cssText = 'margin-bottom:28px;';
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 14px;background:var(--gray-100);border-radius:8px;border-left:4px solid var(--brown-med);';
+      header.innerHTML = `<span style="font-weight:700;color:var(--brown-dark);font-size:14px;">${prodNombre}</span>
+                          <span style="font-weight:700;color:var(--brown-med);font-size:14px;">Costo 3 meses: ${tablaData.costo_prod}</span>`;
+      section.appendChild(header);
       const tablaContainer = document.createElement('div');
       tablaContainer.className = 'table-wrap';
-      prodDiv.appendChild(tablaContainer);
-      document.getElementById('table-pap-resumen').appendChild(prodDiv);
+      section.appendChild(tablaContainer);
+      wrap.appendChild(section);
       renderTable(tablaContainer, tablaData);
     }
   } else {
-    // Cargar tabla simple para un producto
     const papData = await fetchJSON(`/api/tabla_pap?producto=${encodeURIComponent(prod)}&meses=3${modoParams}`);
     renderTable('table-pap-resumen', papData);
   }
@@ -1651,6 +1733,7 @@ async function actualizarDashboard() {
 // ═══════════════════════════════════════════════════════════════
 async function actualizarDemanda() {
   const prod = document.getElementById('dem-filtro-prod')?.value || 'Todos';
+  const meses = document.getElementById('dem-meses')?.value || 6;
   
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
@@ -1658,7 +1741,7 @@ async function actualizarDemanda() {
   document.getElementById('table-demanda').innerHTML = '<div class="spinner"></div>';
 
   const [chart, tabla] = await Promise.all([
-    fetchJSON(`/api/grafico_demanda_barras?producto=${encodeURIComponent(prod)}${modoParams}`),
+    fetchJSON(`/api/grafico_demanda_barras?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
     fetchJSON(`/api/tabla_demanda?producto=${encodeURIComponent(prod)}${modoParams}`),
   ]);
 
@@ -1671,22 +1754,17 @@ async function actualizarDemanda() {
 // ═══════════════════════════════════════════════════════════════
 async function actualizarVentas() {
   const prod = document.getElementById('ven-filtro-prod')?.value || 'Todos';
-  const meses = document.getElementById('ven-meses')?.value || 6;
-  
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
   document.getElementById('chart-ven-hist').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('chart-ven-pron').innerHTML = '<div class="spinner"></div>';
   document.getElementById('table-ventas').innerHTML = '<div class="spinner"></div>';
 
-  const [chartHist, chartPron, tabla] = await Promise.all([
+  const [chartHist, tabla] = await Promise.all([
     fetchJSON(`/api/grafico_ventas_historico?producto=${encodeURIComponent(prod)}${modoParams}`),
-    fetchJSON(`/api/grafico_ventas_pronostico?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
     fetchJSON(`/api/tabla_ventas?producto=${encodeURIComponent(prod)}${modoParams}`),
   ]);
 
   renderChart('chart-ven-hist', chartHist.img);
-  renderChart('chart-ven-pron', chartPron.img);
   renderTable('table-ventas', tabla);
 }
 
@@ -1694,25 +1772,24 @@ async function actualizarVentas() {
 // PRONÓSTICOS
 // ═══════════════════════════════════════════════════════════════
 async function actualizarPronostico() {
-  const prod = document.getElementById('pron-filtro-prod')?.value || 'Todos';
+  const prod  = document.getElementById('pron-filtro-prod')?.value || 'Todos';
   const meses = document.getElementById('pron-meses')?.value || 6;
-  const tipo = document.getElementById('pron-tipo')?.value || 'demanda';
-  
+  const tipo  = document.getElementById('pron-tipo')?.value || 'demanda';
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
-  document.getElementById('chart-pron-hist').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('chart-pron-hist').innerHTML   = '<div class="spinner"></div>';
   document.getElementById('chart-pron-barras').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('table-pronostico').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('table-pronostico').innerHTML  = '<div class="spinner"></div>';
 
   const [chartHist, chartBarras, tabla] = await Promise.all([
-    fetchJSON(`/api/grafico_demanda_historica?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
+    fetchJSON(`/api/grafico_demanda_historica?producto=${encodeURIComponent(prod)}&meses=${meses}&tipo=${tipo}${modoParams}`),
     fetchJSON(`/api/grafico_pronostico_barras?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
     fetchJSON(`/api/tabla_pronostico?producto=${encodeURIComponent(prod)}&meses=${meses}&tipo=${tipo}${modoParams}`),
   ]);
 
-  renderChart('chart-pron-hist', chartHist.img);
+  renderChart('chart-pron-hist',   chartHist.img);
   renderChart('chart-pron-barras', chartBarras.img);
-  renderTable('table-pronostico', tabla);
+  renderTable('table-pronostico',  tabla);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1721,37 +1798,58 @@ async function actualizarPronostico() {
 async function actualizarPAP() {
   const prod = document.getElementById('pap-filtro-prod')?.value || 'Todos';
   const meses = document.getElementById('pap-meses')?.value || 3;
-  
   const modoParams = `&modo=${modoActual}` + (fechaActual ? `&fecha_actual=${fechaActual}` : '');
 
   document.getElementById('chart-pap-main').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('table-pap').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('table-pap').innerHTML     = '<div class="spinner"></div>';
 
-  const [resumen, chart, tabla] = await Promise.all([
+  const [resumen, chart] = await Promise.all([
     fetchJSON(`/api/pap_resumen?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
     fetchJSON(`/api/grafico_pap_resumen?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
-    fetchJSON(`/api/tabla_pap?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`),
   ]);
 
-  // Actualizar KPI cards de producción
-  document.getElementById('pap-precio').textContent = fmt_moneda(resumen.precio_produccion);
-  document.getElementById('pap-unid-op').textContent = resumen.unidades_por_operario.toFixed(2);
-  document.getElementById('pap-op-req').textContent = fmt_num(resumen.operarios_requeridos_max);
-  document.getElementById('pap-op-cont').textContent = fmt_num(resumen.operarios_contratados_total);
-  document.getElementById('pap-op-desp').textContent = fmt_num(resumen.operarios_despedidos_total);
+  // KPIs producción
+  document.getElementById('pap-precio').textContent    = fmt_moneda(resumen.precio_produccion);
+  document.getElementById('pap-unid-op').textContent   = parseFloat(resumen.unidades_por_operario).toFixed(2);
+  document.getElementById('pap-op-req').textContent    = fmt_num(resumen.operarios_requeridos_max);
+  document.getElementById('pap-op-cont').textContent   = fmt_num(resumen.operarios_contratados_total);
+  document.getElementById('pap-op-desp').textContent   = fmt_num(resumen.operarios_despedidos_total);
   document.getElementById('pap-unid-prod').textContent = fmt_num(resumen.unidades_producidas);
   document.getElementById('pap-unid-disp').textContent = fmt_num(resumen.unidades_disponibles);
   document.getElementById('pap-inv-final').textContent = fmt_num(resumen.inventario_final);
 
-  // Actualizar KPI cards de costos
+  // KPIs costos
   document.getElementById('pap-c-cont').textContent = fmt_moneda(resumen.costo_contratar);
   document.getElementById('pap-c-desp').textContent = fmt_moneda(resumen.costo_despedir);
-  document.getElementById('pap-c-mo').textContent = fmt_moneda(resumen.costo_mano_obra);
-  document.getElementById('pap-c-inv').textContent = fmt_moneda(resumen.costo_mantenimiento);
-  document.getElementById('pap-c-total').textContent = fmt_moneda(resumen.costo_total);
+  document.getElementById('pap-c-mo').textContent   = fmt_moneda(resumen.costo_mano_obra);
+  document.getElementById('pap-c-inv').textContent  = fmt_moneda(resumen.costo_mantenimiento);
+  document.getElementById('pap-c-total').textContent= fmt_moneda(resumen.costo_total);
 
   renderChart('chart-pap-main', chart.img);
-  renderTable('table-pap', tabla);
+
+  // Tabla: si es Todos → secciones por producto; si es uno → tabla simple
+  const tableWrap = document.getElementById('table-pap');
+  if (prod === 'Todos') {
+    const papTablas = await fetchJSON(`/api/pap_dashboard_tablas?meses=${meses}${modoParams}`);
+    tableWrap.innerHTML = '';
+    for (const [prodNombre, tablaData] of Object.entries(papTablas.tablas)) {
+      const section = document.createElement('div');
+      section.style.cssText = 'margin-bottom:28px;';
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 14px;background:var(--gray-100);border-radius:8px;border-left:4px solid var(--brown-med);';
+      header.innerHTML = `<span style="font-weight:700;color:var(--brown-dark);font-size:14px;">${prodNombre}</span>
+                          <span style="font-weight:700;color:var(--brown-med);font-size:14px;">Costo ${meses} meses: ${tablaData.costo_prod}</span>`;
+      section.appendChild(header);
+      const tablaContainer = document.createElement('div');
+      tablaContainer.className = 'table-wrap';
+      section.appendChild(tablaContainer);
+      tableWrap.appendChild(section);
+      renderTable(tablaContainer, tablaData);
+    }
+  } else {
+    const tabla = await fetchJSON(`/api/tabla_pap?producto=${encodeURIComponent(prod)}&meses=${meses}${modoParams}`);
+    renderTable('table-pap', tabla);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
