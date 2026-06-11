@@ -161,55 +161,274 @@ def obtener_nombres_productos(df_dem):
 # PRONÓSTICO POR DESCOMPOSICIÓN ESTACIONAL
 # ─────────────────────────────────────────────
 
-def calcular_pronostico_descomposicion(serie, n_periodos=12):
+import pandas as pd
+import numpy as np
+import math
+
+
+import pandas as pd
+import numpy as np
+import math
+
+
+def roundup_excel(valor):
     """
-    Calcula pronóstico por descomposición estacional (multiplicativa).
-    serie: pd.Series con índice DatetimeLike (mensual) y valores de demanda.
-    Retorna: pd.Series con los n_periodos futuros pronosticados.
+    Equivalente a ROUNDUP(valor,0) de Excel.
     """
+
+    if pd.isna(valor):
+        return np.nan
+
+    if valor >= 0:
+        return math.ceil(valor)
+
+    return math.floor(valor)
+
+
+def calcular_pronostico_descomposicion(
+    serie,
+    n_periodos=12
+):
+    """
+    Método de Descomposición.
+
+    IE = Promedio mensual / Promedio global
+    IE ajustado = IE / SUM(IE) * 12
+    DD = Demanda / IE ajustado
+
+    Regresión lineal:
+        DD = a + b*t
+
+    Pronóstico:
+        T = ROUNDUP(a + b*t)
+        Ft = ROUNDUP(T * IE ajustado)
+
+    Regla:
+    - Excluir únicamente los ceros iniciales consecutivos
+      de la regresión.
+    - Mantener cualquier cero posterior.
+    """
+
     serie = serie.dropna().copy()
-    n = len(serie)
-    if n < 13:
-        # Sin suficientes datos: regresión lineal simple
-        x = np.arange(n)
-        coef = np.polyfit(x, serie.values, 1)
-        x_fut = np.arange(n, n + n_periodos)
-        vals = np.polyval(coef, x_fut)
-        fechas_fut = pd.date_range(serie.index[-1] + pd.DateOffset(months=1), periods=n_periodos, freq='MS')
-        return pd.Series(np.maximum(vals, 0).round().astype(int), index=fechas_fut)
 
-    # Media móvil centrada de 12 meses para tendencia
-    ma = serie.rolling(window=12, center=True).mean()
+    if len(serie) == 0:
+        return pd.Series(dtype=float)
 
-    # Índices estacionales: promedio de (observado / tendencia) por mes
-    ratios = (serie / ma).dropna()
-    estacional = {}
+    # --------------------------------------------------
+    # Buscar primer dato positivo
+    # --------------------------------------------------
+
+    primer_idx = None
+
+    for i, valor in enumerate(serie.values):
+
+        if valor > 0:
+            primer_idx = i
+            break
+
+    # Serie completamente en cero
+
+    if primer_idx is None:
+
+        fechas_fut = pd.date_range(
+            start=(
+                serie.index[-1]
+                + pd.DateOffset(months=1)
+            ),
+            periods=n_periodos,
+            freq="MS"
+        )
+
+        return pd.Series(
+            [0] * n_periodos,
+            index=fechas_fut
+        )
+
+    # --------------------------------------------------
+    # Serie utilizada para IE
+    # (incluye todos los datos reales)
+    # --------------------------------------------------
+
+    serie_ie = serie.iloc[primer_idx:]
+
+    # --------------------------------------------------
+    # Promedios mensuales
+    # --------------------------------------------------
+
+    promedios_mes = {}
+
     for mes in range(1, 13):
-        vals_mes = ratios[ratios.index.month == mes]
-        estacional[mes] = vals_mes.mean() if len(vals_mes) > 0 else 1.0
 
-    # Normalizar índices estacionales
-    suma_est = sum(estacional.values())
-    factor_norm = 12 / suma_est
-    estacional = {m: v * factor_norm for m, v in estacional.items()}
+        datos_mes = serie_ie[
+            serie_ie.index.month == mes
+        ]
+        if len(datos_mes) > 0:
+            promedios_mes[mes] = (
+                datos_mes.mean()
+            )
 
-    # Desestacionalizar
-    desest = serie / serie.index.map(lambda d: estacional.get(d.month, 1.0))
+    # --------------------------------------------------
+    # Promedio global
+    # Promedio de los promedios mensuales
+    # --------------------------------------------------
 
-    # Tendencia lineal sobre desestacionalizada
-    x = np.arange(n)
-    coef = np.polyfit(x, desest.values, 1)
+    promedio_global = np.mean(
+        list(promedios_mes.values())
+    )
 
-    # Proyección - incluir mes actual
-    fechas_fut = pd.date_range(serie.index[-1] + pd.DateOffset(months=1), periods=n_periodos, freq='MS')
+    # --------------------------------------------------
+    # PROMEDIOS MENSUALES
+    # --------------------------------------------------
+
+    serie_ie = serie.iloc[primer_idx:]
+
+    promedios_mes = {}
+
+    for mes in range(1, 13):
+
+        datos_mes = serie_ie[
+            serie_ie.index.month == mes
+        ]
+
+        if len(datos_mes) > 0:
+
+            promedios_mes[mes] = (
+                datos_mes.mean()
+            )
+
+    # --------------------------------------------------
+    # PROMEDIO GLOBAL
+    # Excel:
+    # PROMEDIO(promedios mensuales)
+    # --------------------------------------------------
+
+    promedio_global = np.mean(
+        list(promedios_mes.values())
+    )
+
+    # --------------------------------------------------
+    # IE
+    # --------------------------------------------------
+
+    ie = {}
+
+    for mes in range(1, 13):
+
+        if mes in promedios_mes:
+
+            ie[mes] = (
+                promedios_mes[mes]
+                / promedio_global
+            )
+
+        else:
+
+            ie[mes] = 1.0
+
+    # --------------------------------------------------
+    # IE AJUSTADO
+    # Excel:
+    # IE / SUMA(IE) * 12
+    # --------------------------------------------------
+
+    suma_ie = sum(ie.values())
+
+    estacional = {}
+
+    for mes in range(1, 13):
+
+        estacional[mes] = (
+            ie[mes]
+            / suma_ie
+            * 12
+        )
+        
+    # --------------------------------------------------
+    # DD
+    # --------------------------------------------------
+
+    desest = pd.Series(
+        [
+            round(
+                valor
+                / estacional[fecha.month],
+                0
+            )
+            for fecha, valor
+            in serie.items()
+        ],
+        index=serie.index
+    )
+
+    # --------------------------------------------------
+    # Regresión
+    # Excluir solo ceros iniciales
+    # --------------------------------------------------
+
+    desest_reg = desest.iloc[primer_idx:]
+
+    x_reg = np.arange(
+        1,
+        len(desest_reg) + 1
+    )
+
+    pendiente, intercepto = np.polyfit(
+        x_reg,
+        desest_reg.values,
+        1
+    )
+
+    # --------------------------------------------------
+    # Fechas futuras
+    # --------------------------------------------------
+
+    fechas_fut = pd.date_range(
+        start=(
+            serie.index[-1]
+            + pd.DateOffset(months=1)
+        ),
+        periods=n_periodos,
+        freq="MS"
+    )
+
     resultados = []
-    for i, fecha in enumerate(fechas_fut):
-        tendencia = np.polyval(coef, n + i)
-        valor = tendencia * estacional.get(fecha.month, 1.0)
-        resultados.append(max(round(valor), 0))
 
-    return pd.Series(resultados, index=fechas_fut)
+    for i, fecha in enumerate(
+        fechas_fut
+    ):
 
+        # Continuación natural de t
+
+        t_reg = (
+            len(desest_reg)
+            + i
+            + 1
+        )
+
+        # Tendencia
+
+        T = roundup_excel(
+            intercepto
+            + pendiente * t_reg
+        )
+
+        # Pronóstico
+
+        Ft = roundup_excel(
+            T
+            * estacional[fecha.month]
+        )
+
+        resultados.append(
+            max(Ft, 0)
+        )
+
+    return pd.Series(
+
+        resultados,
+        index=fechas_fut
+
+    )
 
 def calcular_pronostico_ventas(demanda_serie, precio_unitario, n_periodos=12):
     """
@@ -385,6 +604,7 @@ def dias_habiles_mes(fecha):
 
 
 def calcular_pap_producto(nombre_prod, df_dem, df_pron, operarios_data, inv_inicial, n_meses=3, modo='produccion', fecha_actual=None):
+    
     """
     Calcula PAP para un producto dado.
     Retorna DataFrame con columnas: Mes, Demanda, Dias, Unidades_por_operario,
@@ -397,19 +617,17 @@ def calcular_pap_producto(nombre_prod, df_dem, df_pron, operarios_data, inv_inic
         modo: 'produccion' o 'prueba' (default 'produccion')
         fecha_actual: fecha actual para modo prueba (None para producción)
     """
+    
     col_dem = f'Demanda_{nombre_prod}'
 
-    # Determinar fecha actual según modo
     if modo == 'prueba' and fecha_actual:
         mes_inicio = pd.Timestamp(fecha_actual).replace(day=1)
     else:
         hoy = pd.Timestamp.now().normalize()
         mes_inicio = hoy.replace(day=1)
-    
-    # Obtener fechas a planificar (próximos n_meses desde mes actual)
+
     fechas = pd.date_range(mes_inicio, periods=n_meses, freq='MS')
 
-    # Parámetros
     prod_por_op = 3  # unidades por operario por día (8h jornada)
     op_actuales_ini = int(operarios_data['operarios'])
     costo_contratar = float(operarios_data['costo_contratar'])
@@ -418,23 +636,23 @@ def calcular_pap_producto(nombre_prod, df_dem, df_pron, operarios_data, inv_inic
     costo_hora_normal = float(operarios_data['costo_hora_normal'])
     jornada = float(operarios_data['jornada_normal'])
 
-    filas = []
-    inv = inv_inicial
-    op_prev = op_actuales_ini
-
+    # ── Calcular demanda promedio y unidades/operario promedio del horizonte ──
+    # para determinar Operarios Requeridos de forma constante en todo el horizonte
+    demandas_horizonte = []
+    unid_por_op_horizonte = []
     for fecha in fechas:
-        dias = dias_habiles_mes(fecha)
-
-        # Demanda: usar real si existe y supera al pronóstico, sino pronóstico
-        dem_real = None
-        dem_pron = None
+        # Días naturales del mes
+        dias_nat = calendar.monthrange(fecha.year, fecha.month)[1]
+        unid_op = dias_nat * prod_por_op
+        unid_por_op_horizonte.append(unid_op)
 
         col_pron = f'Pronostico_Demanda_{nombre_prod}'
+        dem_pron = None
+        dem_real = None
         if col_pron in df_pron.columns:
             fila_pron = df_pron[df_pron['Mes'] == fecha]
             if not fila_pron.empty:
                 dem_pron = float(fila_pron[col_pron].values[0])
-
         if col_dem in df_dem.columns:
             fila_real = df_dem[df_dem['Mes'] == fecha]
             if not fila_real.empty:
@@ -448,20 +666,28 @@ def calcular_pap_producto(nombre_prod, df_dem, df_pron, operarios_data, inv_inic
             demanda = dem_pron
         else:
             demanda = 0
+        demandas_horizonte.append(math.ceil(demanda))
 
-        demanda = math.ceil(demanda)
+    dem_promedio = sum(demandas_horizonte) / len(demandas_horizonte) if demandas_horizonte else 0
+    unid_op_promedio = sum(unid_por_op_horizonte) / len(unid_por_op_horizonte) if unid_por_op_horizonte else 1
 
-        # Unidades por operario en el mes
-        unid_por_op = dias * prod_por_op
+    # Operarios requeridos fijos para todo el horizonte (basado en promedios)
+    op_requeridos_fijo = math.ceil(dem_promedio / unid_op_promedio) if unid_op_promedio > 0 else 1
+    op_requeridos_fijo = max(op_requeridos_fijo, 1)
 
-        # Operarios requeridos (mínimo para cubrir demanda - inventario)
-        demanda_neta = max(demanda - inv, 0)
-        op_requeridos = math.ceil(demanda_neta / unid_por_op) if unid_por_op > 0 else 1
-        op_requeridos = max(op_requeridos, 1)
+    filas = []
+    inv = inv_inicial
+    op_prev = op_actuales_ini
 
-        # Operarios actuales (paralelo: mismo pool para todos los productos)
-        op_utilizados = min(op_requeridos, op_prev)
-        # Si se necesitan más, se contratan; si sobran, se despiden
+    for idx, fecha in enumerate(fechas):
+        # Días naturales del mes
+        dias_nat = calendar.monthrange(fecha.year, fecha.month)[1]
+        unid_por_op = dias_nat * prod_por_op
+
+        demanda = demandas_horizonte[idx]
+
+        # Operarios: usar el valor fijo calculado por promedios del horizonte
+        op_requeridos = op_requeridos_fijo
         op_contratados = max(op_requeridos - op_prev, 0)
         op_despedidos = max(op_prev - op_requeridos, 0)
         op_actuales = op_prev + op_contratados - op_despedidos
@@ -471,17 +697,16 @@ def calcular_pap_producto(nombre_prod, df_dem, df_pron, operarios_data, inv_inic
         unidades_disponibles = inv + unidades_producidas
         inv_final = max(unidades_disponibles - demanda, 0)
 
-        # Costos
         c_contratar = op_contratados * costo_contratar
         c_despedir = op_despedidos * costo_despedir
-        c_mano_obra = op_utilizados * dias * jornada * costo_hora_normal
+        c_mano_obra = op_utilizados * dias_nat * jornada * costo_hora_normal
         c_almacen = inv_final * costo_almacen
         c_total = c_contratar + c_despedir + c_mano_obra + c_almacen
 
         filas.append({
             'Mes': fecha,
             'Demanda': demanda,
-            'Dias': dias,
+            'Dias': dias_nat,
             'Unidades_por_operario': unid_por_op,
             'Operarios_requeridos': op_requeridos,
             'Operarios_actuales': op_actuales,

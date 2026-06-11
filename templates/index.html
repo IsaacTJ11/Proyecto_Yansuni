@@ -1146,102 +1146,38 @@
                             </div>
                         </div>
                         <div class="card-body">
+                            <!-- Resumen de Indicadores de Producción -->
                             <div class="kpi-grid" id="pap-resumen-kpis">
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--brown-med)"
-                                >
-                                    <div class="kpi-icon">💰</div>
-                                    <div class="kpi-label">
-                                        Precio Producción
-                                    </div>
-                                    <div class="kpi-value" id="pap-precio">
-                                        -
-                                    </div>
+                                <div class="kpi-card" style="--kpi-color: var(--brown-med)">
+                                    <div class="kpi-icon">📦</div>
+                                    <div class="kpi-label">Inventario Inicial</div>
+                                    <div class="kpi-value" id="pap-inv-inicial">-</div>
+                                    <div class="kpi-sub">unidades</div>
                                 </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--green-med)"
-                                >
-                                    <div class="kpi-icon">👷</div>
-                                    <div class="kpi-label">
-                                        Unidades por Operario
-                                    </div>
-                                    <div class="kpi-value" id="pap-unid-op">
-                                        -
-                                    </div>
-                                </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--gold)"
-                                >
+                                <div class="kpi-card" style="--kpi-color: var(--gold)">
                                     <div class="kpi-icon">👥</div>
-                                    <div class="kpi-label">
-                                        Operarios Requeridos
-                                    </div>
-                                    <div class="kpi-value" id="pap-op-req">
-                                        -
-                                    </div>
+                                    <div class="kpi-label">Operarios Requeridos</div>
+                                    <div class="kpi-value" id="pap-op-req">-</div>
                                 </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--brown-light)"
-                                >
+                                <div class="kpi-card" style="--kpi-color: var(--brown-light)">
                                     <div class="kpi-icon">➕</div>
-                                    <div class="kpi-label">
-                                        Operarios Contratados
-                                    </div>
-                                    <div class="kpi-value" id="pap-op-cont">
-                                        -
-                                    </div>
+                                    <div class="kpi-label">Operarios Contratados</div>
+                                    <div class="kpi-value" id="pap-op-cont">-</div>
                                 </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--green-light)"
-                                >
+                                <div class="kpi-card" style="--kpi-color: var(--green-light)">
                                     <div class="kpi-icon">➖</div>
-                                    <div class="kpi-label">
-                                        Operarios Despedidos
-                                    </div>
-                                    <div class="kpi-value" id="pap-op-desp">
-                                        -
-                                    </div>
+                                    <div class="kpi-label">Operarios Despedidos</div>
+                                    <div class="kpi-value" id="pap-op-desp">-</div>
                                 </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--brown-med)"
-                                >
-                                    <div class="kpi-icon">📦</div>
-                                    <div class="kpi-label">
-                                        Unidades Producidas
-                                    </div>
-                                    <div class="kpi-value" id="pap-unid-prod">
-                                        -
-                                    </div>
-                                </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--green-med)"
-                                >
+                                <div class="kpi-card" style="--kpi-color: var(--green-med)">
                                     <div class="kpi-icon">📊</div>
-                                    <div class="kpi-label">
-                                        Unidades Disponibles
-                                    </div>
-                                    <div class="kpi-value" id="pap-unid-disp">
-                                        -
-                                    </div>
+                                    <div class="kpi-label">Unidades Disponibles (último mes)</div>
+                                    <div class="kpi-value" id="pap-unid-disp">-</div>
                                 </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--gold)"
-                                >
+                                <div class="kpi-card" style="--kpi-color: var(--gold)">
                                     <div class="kpi-icon">📦</div>
-                                    <div class="kpi-label">
-                                        Inventario Final
-                                    </div>
-                                    <div class="kpi-value" id="pap-inv-final">
-                                        -
-                                    </div>
+                                    <div class="kpi-label">Inventario Final</div>
+                                    <div class="kpi-value" id="pap-inv-final">-</div>
                                 </div>
                             </div>
                         </div>
@@ -1253,58 +1189,32 @@
                             <div class="card-title">💵 Resumen de Costos</div>
                         </div>
                         <div class="card-body">
+                            <!-- Resumen de Costos -->
                             <div class="kpi-grid" id="pap-costos-kpis">
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--brown-med)"
-                                >
-                                    <div class="kpi-icon">➕</div>
-                                    <div class="kpi-label">Costo Contratar</div>
-                                    <div class="kpi-value" id="pap-c-cont">
-                                        -
-                                    </div>
-                                </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--green-med)"
-                                >
-                                    <div class="kpi-icon">➖</div>
-                                    <div class="kpi-label">Costo Despedir</div>
-                                    <div class="kpi-value" id="pap-c-desp">
-                                        -
-                                    </div>
-                                </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--gold)"
-                                >
-                                    <div class="kpi-icon">⚙️</div>
-                                    <div class="kpi-label">
-                                        Costo Mano de Obra
-                                    </div>
-                                    <div class="kpi-value" id="pap-c-mo">-</div>
-                                </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--brown-light)"
-                                >
-                                    <div class="kpi-icon">📦</div>
-                                    <div class="kpi-label">
-                                        Costo Mantener Inventario
-                                    </div>
-                                    <div class="kpi-value" id="pap-c-inv">
-                                        -
-                                    </div>
-                                </div>
-                                <div
-                                    class="kpi-card"
-                                    style="--kpi-color: var(--green-light)"
-                                >
+                                <div class="kpi-card" style="--kpi-color: var(--green-light)">
                                     <div class="kpi-icon">💰</div>
                                     <div class="kpi-label">Costo Total</div>
-                                    <div class="kpi-value" id="pap-c-total">
-                                        -
-                                    </div>
+                                    <div class="kpi-value" id="pap-c-total">-</div>
+                                </div>
+                                <div class="kpi-card" style="--kpi-color: var(--gold)">
+                                    <div class="kpi-icon">⚙️</div>
+                                    <div class="kpi-label">Costo Mano de Obra</div>
+                                    <div class="kpi-value" id="pap-c-mo">-</div>
+                                </div>
+                                <div class="kpi-card" style="--kpi-color: var(--brown-med)">
+                                    <div class="kpi-icon">➕</div>
+                                    <div class="kpi-label">Costo Contratar</div>
+                                    <div class="kpi-value" id="pap-c-cont">-</div>
+                                </div>
+                                <div class="kpi-card" style="--kpi-color: var(--green-med)">
+                                    <div class="kpi-icon">➖</div>
+                                    <div class="kpi-label">Costo Despedir</div>
+                                    <div class="kpi-value" id="pap-c-desp">-</div>
+                                </div>
+                                <div class="kpi-card" style="--kpi-color: var(--brown-light)">
+                                    <div class="kpi-icon">📦</div>
+                                    <div class="kpi-label">Costo Mantener Inventario</div>
+                                    <div class="kpi-value" id="pap-c-inv">-</div>
                                 </div>
                             </div>
                         </div>
@@ -2828,8 +2738,7 @@
             // ═══════════════════════════════════════════════════════════════
             async function actualizarPAP() {
                 const prod =
-                    document.getElementById("pap-filtro-prod")?.value ||
-                    "Todos";
+                    document.getElementById("pap-filtro-prod")?.value || "Todos";
                 const meses = document.getElementById("pap-meses")?.value || 3;
                 const modoParams =
                     `&modo=${modoActual}` +
@@ -2850,12 +2759,9 @@
                 ]);
 
                 // KPIs producción
-                document.getElementById("pap-precio").textContent = fmt_moneda(
-                    resumen.precio_produccion,
+                document.getElementById("pap-inv-inicial").textContent = fmt_num(
+                    resumen.inventario_inicial,
                 );
-                document.getElementById("pap-unid-op").textContent = parseFloat(
-                    resumen.unidades_por_operario,
-                ).toFixed(2);
                 document.getElementById("pap-op-req").textContent = fmt_num(
                     resumen.operarios_requeridos_max,
                 );
@@ -2865,36 +2771,32 @@
                 document.getElementById("pap-op-desp").textContent = fmt_num(
                     resumen.operarios_despedidos_total,
                 );
-                document.getElementById("pap-unid-prod").textContent = fmt_num(
-                    resumen.unidades_producidas,
-                );
                 document.getElementById("pap-unid-disp").textContent = fmt_num(
-                    resumen.unidades_disponibles,
+                    resumen.unidades_disponibles_ultimo,
                 );
                 document.getElementById("pap-inv-final").textContent = fmt_num(
                     resumen.inventario_final,
                 );
 
                 // KPIs costos
+                document.getElementById("pap-c-total").textContent = fmt_moneda(
+                    resumen.costo_total,
+                );
+                document.getElementById("pap-c-mo").textContent = fmt_moneda(
+                    resumen.costo_mano_obra,
+                );
                 document.getElementById("pap-c-cont").textContent = fmt_moneda(
                     resumen.costo_contratar,
                 );
                 document.getElementById("pap-c-desp").textContent = fmt_moneda(
                     resumen.costo_despedir,
                 );
-                document.getElementById("pap-c-mo").textContent = fmt_moneda(
-                    resumen.costo_mano_obra,
-                );
                 document.getElementById("pap-c-inv").textContent = fmt_moneda(
                     resumen.costo_mantenimiento,
-                );
-                document.getElementById("pap-c-total").textContent = fmt_moneda(
-                    resumen.costo_total,
                 );
 
                 renderChart("chart-pap-main", chart.img);
 
-                // Tabla: si es Todos → secciones por producto; si es uno → tabla simple
                 const tableWrap = document.getElementById("table-pap");
                 if (prod === "Todos") {
                     const papTablas = await fetchJSON(
@@ -2910,7 +2812,7 @@
                         header.style.cssText =
                             "display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 14px;background:var(--gray-100);border-radius:8px;border-left:4px solid var(--brown-med);";
                         header.innerHTML = `<span style="font-weight:700;color:var(--brown-dark);font-size:14px;">${prodNombre}</span>
-                          <span style="font-weight:700;color:var(--brown-med);font-size:14px;">Costo ${meses} meses: ${tablaData.costo_prod}</span>`;
+                        <span style="font-weight:700;color:var(--brown-med);font-size:14px;">Costo ${meses} meses: ${tablaData.costo_prod}</span>`;
                         section.appendChild(header);
                         const tablaContainer = document.createElement("div");
                         tablaContainer.className = "table-wrap";
